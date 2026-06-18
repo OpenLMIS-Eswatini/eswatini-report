@@ -1,0 +1,29 @@
+name: Build & Push eswatini-report image to Docker Hub
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master ]
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read service version
+        id: version
+        run: echo "version=$(grep '^serviceVersion' gradle.properties | cut -d'=' -f2)" >> "$GITHUB_OUTPUT"
+      - name: Download sample env
+        run: curl -o .env -L https://raw.githubusercontent.com/OpenLMIS/openlmis-ref-distro/master/settings-sample.env
+      - name: Build service jar
+        run: docker compose -f docker-compose.builder.yml run --rm builder
+      - name: Build image
+        run: docker compose -f docker-compose.builder.yml build image
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_PASSWORD }}
+      - name: Tag and push
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          docker tag openlmisci/eswatini-report:latest openlmisci/eswatini-report:"$VERSION"
+          docker push openlmisci/eswatini-report:"$VERSION"

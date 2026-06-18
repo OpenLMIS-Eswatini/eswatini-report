@@ -1,15 +1,14 @@
-version: "2"
 services:
 
   report:
-    image: openlmis/report
+    image: openlmisci/eswatini-report
     links:
       - db
       - log
     env_file: .env
 
   db:
-    image: openlmis/postgres:12-debezium
+    image: openlmis/postgres:14-debezium
     logging:
       driver: syslog
       options:

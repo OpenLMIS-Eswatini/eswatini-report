@@ -1,3 +1,13 @@
+1.0.0 / 2026-06-18
+==================
+
+This is the Eswatini-specific fork of OpenLMIS `openlmis-report`, published as
+`openlmisci/eswatini-report`. Eswatini changelog entries and versioning are
+recorded above; everything below it is the inherited upstream.
+
+UPSTREAM HISTORY
+==================
+
 Upcoming Version / (WIP)
 ==================
 

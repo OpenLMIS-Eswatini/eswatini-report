@@ -1,4 +1,3 @@
-version: "2"
 services:
 
   builder:
@@ -47,10 +46,10 @@ services:
 
   image:
     build: .
-    image: openlmis/report
+    image: openlmisci/eswatini-report
 
   db:
-    image: openlmis/postgres:12-debezium
+    image: openlmis/postgres:14-debezium
     env_file: .env
 
   log:
