@@ -51,7 +51,7 @@ Reports are **data**, stored in the `report` schema (mainly the `jasper_template
 Scaffold a migration file (runs the Gradle task in the build container):
 
 ```bash
-docker compose -f docker-compose.builder.yml run --rm builder
+docker compose run --rm --service-ports report
 gradle generateMigration -PmigrationName=add_my_custom_report
 ```
 
