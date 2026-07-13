@@ -1,0 +1,295 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Jaspersoft Studio version 6.20.5.20250704-1505 using JasperReports Library version 6.20.5-3efcf2e67f959db3888d79f73dde2dbd7acb4f8e  -->
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="CtsRequisitionReport" pageWidth="842" pageHeight="595" orientation="Landscape" whenNoDataType="AllSectionsNoDetail" columnWidth="802" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" isFloatColumnFooter="true" resourceBundle="reports/resourceBundles/report_translations" whenResourceMissingType="Key" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c10">
+	<property name="net.sf.jasperreports.export.xlsx.exclude.origin.band.1" value="pageHeader"/>
+	<property name="net.sf.jasperreports.export.xlsx.exclude.origin.band.2" value="pageFooter"/>
+	<property name="net.sf.jasperreports.export.xlsx.exclude.origin.keep.first.band.1" value="columnHeader"/>
+	<property name="net.sf.jasperreports.export.xlsx.remove.empty.space.between.rows" value="true"/>
+	<property name="net.sf.jasperreports.export.xls.exclude.origin.band.1" value="pageHeader"/>
+	<property name="net.sf.jasperreports.export.xls.exclude.origin.band.2" value="pageFooter"/>
+	<property name="net.sf.jasperreports.export.xls.exclude.origin.keep.first.band.1" value="columnHeader"/>
+	<property name="net.sf.jasperreports.export.xls.remove.empty.space.between.rows" value="true"/>
+	<property name="net.sf.jasperreports.export.csv.exclude.origin.band.1" value="pageHeader"/>
+	<property name="net.sf.jasperreports.export.csv.exclude.origin.band.2" value="pageFooter"/>
+	<property name="net.sf.jasperreports.export.csv.exclude.origin.keep.first.band.1" value="columnHeader"/>
+	<parameter name="program" class="java.lang.String">
+		<property name="displayName" value="Program"/>
+		<property name="required" value="true"/>
+		<property name="selectExpression" value="/api/programs"/>
+		<property name="selectProperty" value="id"/>
+		<property name="displayProperty" value="name"/>
+	</parameter>
+	<parameter name="geographicZone" class="java.lang.String">
+		<property name="displayName" value="Geographic Zone"/>
+		<property name="required" value="false"/>
+		<property name="selectExpression" value="/api/geographicZones/search"/>
+		<property name="selectProperty" value="id"/>
+		<property name="displayProperty" value="name"/>
+	</parameter>
+	<parameter name="facility" class="java.lang.String">
+		<property name="displayName" value="Facility"/>
+		<property name="required" value="false"/>
+		<property name="selectExpression" value="/api/facilities"/>
+		<property name="selectProperty" value="code"/>
+		<property name="displayProperty" value="name"/>
+	</parameter>
+	<parameter name="period" class="java.lang.String">
+		<property name="displayName" value="Processing Period"/>
+		<property name="required" value="false"/>
+		<property name="selectExpression" value="/api/processingPeriods"/>
+		<property name="selectProperty" value="id"/>
+		<property name="displayProperty" value="name"/>
+	</parameter>
+	<parameter name="startDate" class="java.lang.String">
+		<property name="displayName" value="Start Date"/>
+		<property name="required" value="false"/>
+	</parameter>
+	<parameter name="endDate" class="java.lang.String">
+		<property name="displayName" value="End Date"/>
+		<property name="required" value="false"/>
+	</parameter>
+	<parameter name="headerTemplate" class="net.sf.jasperreports.engine.JasperReport" isForPrompting="false"/>
+	<queryString>
+		<![CDATA[WITH RECURSIVE zone_tree AS (
+  SELECT id FROM referencedata.geographic_zones
+   WHERE $P{geographicZone} IS NULL OR id = $P{geographicZone}::uuid
+  UNION ALL
+  SELECT gz.id FROM referencedata.geographic_zones gz
+  JOIN zone_tree zt ON zt.id = gz.parentid
+)
+SELECT
+  f.code AS facilityCode,
+  o.code AS productCode,
+  EXTRACT(MONTH FROM pp.startdate)::int AS month,
+  EXTRACT(YEAR FROM pp.startdate)::int AS year,
+  CEIL(rli.beginningbalance::numeric / NULLIF(o.netcontent, 0))::int AS beginningStock,
+  CEIL(rli.totalreceivedquantity::numeric / NULLIF(o.netcontent, 0))::int AS quantityReceived,
+  CEIL(rli.totalconsumedquantity::numeric / NULLIF(o.netcontent, 0))::int AS quantityDispensed,
+  CEIL(rli.totallossesandadjustments::numeric / NULLIF(o.netcontent, 0))::int AS lossesOrAdjustments,
+  CASE
+    WHEN rli.totallossesandadjustments > 0 THEN 'Positive Adjustment'
+    WHEN rli.totallossesandadjustments < 0 THEN 'Negative Adjustment'
+    ELSE NULL
+  END AS reasonForAdjustment,
+  rli.totalstockoutdays AS daysOutOfStock,
+  CEIL(rli.stockonhand::numeric / NULLIF(o.netcontent, 0))::int AS stockOnHand
+FROM requisition.requisition_line_items rli
+JOIN requisition.requisitions r ON r.id = rli.requisitionid
+JOIN referencedata.processing_periods pp ON pp.id = r.processingperiodid
+JOIN referencedata.facilities f ON f.id = r.facilityid
+JOIN referencedata.orderables o
+  ON o.id = rli.orderableid AND o.versionnumber = rli.orderableversionnumber
+JOIN referencedata.programs prog ON prog.id = r.programid
+WHERE (prog.id::varchar = $P{program} OR prog.name = $P{program})
+  AND r.status IN ('APPROVED', 'RELEASED', 'RELEASED_WITHOUT_ORDER')
+  AND r.emergency = false
+  AND COALESCE(rli.skipped, false) = false
+  AND EXISTS (
+        SELECT 1 FROM referencedata.program_orderables po
+        WHERE po.orderableid = rli.orderableid
+          AND po.programid = r.programid
+          AND po.fullsupply = true
+      )
+  AND (
+        ($P{facility} IS NOT NULL
+         AND (f.code = $P{facility} OR f.id::varchar = $P{facility}))
+     OR ($P{facility} IS NULL AND f.geographiczoneid IN (SELECT id FROM zone_tree))
+      )
+  AND ($P{period} IS NULL OR pp.id::varchar = $P{period} OR pp.name = $P{period})
+  AND ($P{startDate} IS NULL OR pp.startdate >= $P{startDate}::date)
+  AND ($P{endDate} IS NULL OR pp.startdate <= $P{endDate}::date)
+ORDER BY f.code, pp.startdate, o.code]]>
+	</queryString>
+	<field name="facilityCode" class="java.lang.String"/>
+	<field name="productCode" class="java.lang.String"/>
+	<field name="month" class="java.lang.Integer"/>
+	<field name="year" class="java.lang.Integer"/>
+	<field name="beginningStock" class="java.lang.Integer"/>
+	<field name="quantityReceived" class="java.lang.Integer"/>
+	<field name="quantityDispensed" class="java.lang.Integer"/>
+	<field name="lossesOrAdjustments" class="java.lang.Integer"/>
+	<field name="reasonForAdjustment" class="java.lang.String"/>
+	<field name="daysOutOfStock" class="java.lang.Integer"/>
+	<field name="stockOnHand" class="java.lang.Integer"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<pageHeader>
+		<band height="26" splitType="Stretch">
+			<printWhenExpression><![CDATA[new Boolean($V{PAGE_NUMBER}.intValue() == 1)]]></printWhenExpression>
+			<textField>
+				<reportElement x="0" y="0" width="802" height="24" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c12"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle">
+					<font size="16" isBold="true"/>
+				</textElement>
+				<textFieldExpression><![CDATA[$R{report.title.ctsRequisitionReport}]]></textFieldExpression>
+			</textField>
+		</band>
+	</pageHeader>
+	<columnHeader>
+		<band height="60" splitType="Stretch">
+			<rectangle>
+				<reportElement x="0" y="0" width="802" height="60" backcolor="#C0C0C0" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c20"/>
+				<graphicElement>
+					<pen lineWidth="0.0"/>
+				</graphicElement>
+			</rectangle>
+			<textField>
+				<reportElement x="0" y="0" width="64" height="60" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c21"/>
+				<box leftPadding="3"><pen lineWidth="0.5" lineColor="#80C7E8"/></box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement>
+				<textFieldExpression><![CDATA[$R{report.column.facilityCode}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="64" y="0" width="92" height="60" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c22"/>
+				<box leftPadding="3"><pen lineWidth="0.5" lineColor="#80C7E8"/></box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement>
+				<textFieldExpression><![CDATA[$R{report.column.productCode}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="156" y="0" width="42" height="60" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c23"/>
+				<box leftPadding="3"><pen lineWidth="0.5" lineColor="#80C7E8"/></box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement>
+				<textFieldExpression><![CDATA[$R{report.column.month}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="198" y="0" width="42" height="60" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c24"/>
+				<box leftPadding="3"><pen lineWidth="0.5" lineColor="#80C7E8"/></box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement>
+				<textFieldExpression><![CDATA[$R{report.column.year}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="240" y="0" width="70" height="60" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c25"/>
+				<box leftPadding="3"><pen lineWidth="0.5" lineColor="#80C7E8"/></box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement>
+				<textFieldExpression><![CDATA[$R{report.column.beginningStock}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="310" y="0" width="74" height="60" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c26"/>
+				<box leftPadding="3"><pen lineWidth="0.5" lineColor="#80C7E8"/></box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement>
+				<textFieldExpression><![CDATA[$R{report.column.quantityReceived}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="384" y="0" width="78" height="60" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c27"/>
+				<box leftPadding="3"><pen lineWidth="0.5" lineColor="#80C7E8"/></box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement>
+				<textFieldExpression><![CDATA[$R{report.column.quantityDispensed}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="462" y="0" width="72" height="60" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c28"/>
+				<box leftPadding="3"><pen lineWidth="0.5" lineColor="#80C7E8"/></box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement>
+				<textFieldExpression><![CDATA[$R{report.column.lossesOrAdjustments}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="534" y="0" width="140" height="60" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c29"/>
+				<box leftPadding="3"><pen lineWidth="0.5" lineColor="#80C7E8"/></box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement>
+				<textFieldExpression><![CDATA[$R{report.column.reasonForAdjustment}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="674" y="0" width="62" height="60" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c2a"/>
+				<box leftPadding="3"><pen lineWidth="0.5" lineColor="#80C7E8"/></box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement>
+				<textFieldExpression><![CDATA[$R{report.column.daysOutOfStock}]]></textFieldExpression>
+			</textField>
+			<textField>
+				<reportElement x="736" y="0" width="66" height="60" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c2b"/>
+				<box leftPadding="3"><pen lineWidth="0.5" lineColor="#80C7E8"/></box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement>
+				<textFieldExpression><![CDATA[$R{report.column.stockOnHand}]]></textFieldExpression>
+			</textField>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="20" splitType="Prevent">
+			<textField isBlankWhenNull="true">
+				<reportElement x="0" y="0" width="64" height="20" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c31"/>
+				<box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box>
+				<textElement textAlignment="Left" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{facilityCode}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="64" y="0" width="92" height="20" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c32"/>
+				<box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box>
+				<textElement textAlignment="Left" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{productCode}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="156" y="0" width="42" height="20" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c33"/>
+				<box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{month}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="198" y="0" width="42" height="20" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c34"/>
+				<box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box>
+				<textElement textAlignment="Center" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{year}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="240" y="0" width="70" height="20" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c35"/>
+				<box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box>
+				<textElement textAlignment="Right" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{beginningStock}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="310" y="0" width="74" height="20" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c36"/>
+				<box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box>
+				<textElement textAlignment="Right" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{quantityReceived}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="384" y="0" width="78" height="20" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c37"/>
+				<box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box>
+				<textElement textAlignment="Right" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{quantityDispensed}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="462" y="0" width="72" height="20" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c38"/>
+				<box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box>
+				<textElement textAlignment="Right" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{lossesOrAdjustments}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="534" y="0" width="140" height="20" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c39"/>
+				<box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box>
+				<textElement textAlignment="Left" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{reasonForAdjustment}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="674" y="0" width="62" height="20" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c3a"/>
+				<box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box>
+				<textElement textAlignment="Right" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{daysOutOfStock}]]></textFieldExpression>
+			</textField>
+			<textField isBlankWhenNull="true">
+				<reportElement x="736" y="0" width="66" height="20" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c3b"/>
+				<box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box>
+				<textElement textAlignment="Right" verticalAlignment="Middle"/>
+				<textFieldExpression><![CDATA[$F{stockOnHand}]]></textFieldExpression>
+			</textField>
+		</band>
+	</detail>
+	<pageFooter>
+		<band height="30">
+			<textField evaluationTime="Master">
+				<reportElement x="602" y="5" width="200" height="20" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c40"/>
+				<textElement textAlignment="Right" verticalAlignment="Top"/>
+				<textFieldExpression><![CDATA[$R{report.controls.page} + $V{MASTER_CURRENT_PAGE} + $R{report.controls.pageOf} + $V{MASTER_TOTAL_PAGES}]]></textFieldExpression>
+			</textField>
+		</band>
+	</pageFooter>
+	<summary>
+		<band height="40">
+			<textField>
+				<reportElement positionType="FixRelativeToBottom" x="0" y="0" width="802" height="30" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c50">
+					<printWhenExpression><![CDATA[new Boolean($V{REPORT_COUNT}.intValue() == 0)]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Center" verticalAlignment="Middle"><font size="12" isBold="true"/></textElement>
+				<textFieldExpression><![CDATA[$R{report.footer.noDataForParameters}]]></textFieldExpression>
+			</textField>
+		</band>
+	</summary>
+</jasperReport>

@@ -1,6 +1,10 @@
 1.0.1 / WIP
 ==================
 
+New functionality:
+* Added CTS Requisition Report (`cts_requisition_report`): exports full-supply requisition
+  line-item data (quantities in packs) for the CTS - Commodity Tracking System.
+
 1.0.0 / 2026-06-18
 ==================
 
