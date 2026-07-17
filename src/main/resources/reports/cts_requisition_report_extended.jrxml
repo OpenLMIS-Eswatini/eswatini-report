@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Jaspersoft Studio version 6.20.5.20250704-1505 using JasperReports Library version 6.20.5-3efcf2e67f959db3888d79f73dde2dbd7acb4f8e  -->
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="CtsRequisitionReportExtended" pageWidth="1610" pageHeight="595" orientation="Landscape" whenNoDataType="AllSectionsNoDetail" columnWidth="1570" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" isFloatColumnFooter="true" resourceBundle="reports/resourceBundles/report_translations" whenResourceMissingType="Key" uuid="edf0ece8-41f2-4b72-816e-a56bdcdec46f">
+	<property name="net.sf.jasperreports.export.xlsx.exclude.origin.band.1" value="pageHeader"/>
+	<property name="net.sf.jasperreports.export.xlsx.exclude.origin.band.2" value="pageFooter"/>
+	<property name="net.sf.jasperreports.export.xlsx.exclude.origin.keep.first.band.1" value="columnHeader"/>
+	<property name="net.sf.jasperreports.export.xlsx.remove.empty.space.between.rows" value="true"/>
+	<property name="net.sf.jasperreports.export.xls.exclude.origin.band.1" value="pageHeader"/>
+	<property name="net.sf.jasperreports.export.xls.exclude.origin.band.2" value="pageFooter"/>
+	<property name="net.sf.jasperreports.export.xls.exclude.origin.keep.first.band.1" value="columnHeader"/>
+	<property name="net.sf.jasperreports.export.xls.remove.empty.space.between.rows" value="true"/>
+	<property name="net.sf.jasperreports.export.csv.exclude.origin.band.1" value="pageHeader"/>
+	<property name="net.sf.jasperreports.export.csv.exclude.origin.band.2" value="pageFooter"/>
+	<property name="net.sf.jasperreports.export.csv.exclude.origin.keep.first.band.1" value="columnHeader"/>
+	<parameter name="program" class="java.lang.String">
+		<property name="displayName" value="Program"/>
+		<property name="required" value="false"/>
+		<property name="selectExpression" value="/api/programs"/>
+		<property name="selectProperty" value="id"/>
+		<property name="displayProperty" value="name"/>
+	</parameter>
+	<parameter name="geographicZone" class="java.lang.String">
+		<property name="displayName" value="Geographic Zone"/>
+		<property name="required" value="false"/>
+		<property name="selectExpression" value="/api/geographicZones/search"/>
+		<property name="selectProperty" value="id"/>
+		<property name="displayProperty" value="name"/>
+	</parameter>
+	<parameter name="facility" class="java.lang.String">
+		<property name="displayName" value="Facility"/>
+		<property name="required" value="false"/>
+		<property name="selectExpression" value="/api/facilities"/>
+		<property name="selectProperty" value="code"/>
+		<property name="displayProperty" value="name"/>
+	</parameter>
+	<parameter name="period" class="java.lang.String">
+		<property name="displayName" value="Processing Period"/>
+		<property name="required" value="false"/>
+		<property name="selectExpression" value="/api/processingPeriods"/>
+		<property name="selectProperty" value="id"/>
+		<property name="displayProperty" value="name"/>
+	</parameter>
+	<parameter name="product" class="java.lang.String">
+		<property name="displayName" value="Product"/>
+		<property name="required" value="false"/>
+		<property name="selectExpression" value="/api/orderables"/>
+		<property name="selectProperty" value="id"/>
+		<property name="displayProperty" value="fullProductName"/>
+	</parameter>
+	<parameter name="headerTemplate" class="net.sf.jasperreports.engine.JasperReport" isForPrompting="false"/>
+	<queryString>
+		<![CDATA[WITH RECURSIVE zone_tree AS (
+  SELECT id FROM referencedata.geographic_zones
+   WHERE $P{geographicZone} IS NULL OR id = $P{geographicZone}::uuid
+  UNION ALL
+  SELECT gz.id FROM referencedata.geographic_zones gz
+  JOIN zone_tree zt ON zt.id = gz.parentid
+)
+SELECT
+  f.code AS facilityId,
+  gz.name AS region,
+  EXTRACT(MONTH FROM pp.startdate)::int AS monthId,
+  EXTRACT(YEAR FROM pp.startdate)::int AS year,
+  prog.name AS program,
+  o.code AS itemNo,
+  o.fullproductname AS productName,
+  odc.code AS itemGroupId,
+  CEIL(rli.beginningbalance::numeric / NULLIF(o.netcontent, 0))::int AS openingStock,
+  CEIL(rli.totalreceivedquantity::numeric / NULLIF(o.netcontent, 0))::int AS receiveQty,
+  CEIL(rli.totalconsumedquantity::numeric / NULLIF(o.netcontent, 0))::int AS dispensedQty,
+  (SIGN(rli.totallossesandadjustments) * CEIL(ABS(rli.totallossesandadjustments)::numeric / NULLIF(o.netcontent, 0)))::int AS adjustedQty,
+  CASE
+    WHEN rli.totallossesandadjustments > 0 THEN 'Positive Adjustment'
+    WHEN rli.totallossesandadjustments < 0 THEN 'Negative Adjustment'
+    ELSE NULL
+  END AS reasonForAdjustId,
+  rli.totalstockoutdays AS stockoutDays,
+  CEIL(rli.stockonhand::numeric / NULLIF(o.netcontent, 0))::int AS closingStock,
+  round(rli.stockonhand::numeric / NULLIF(rli.averageconsumption, 0), 1) AS mos,
+  CEIL(rli.averageconsumption::numeric / NULLIF(o.netcontent, 0))::int AS amc,
+  CEIL(rli.maximumstockquantity::numeric / NULLIF(o.netcontent, 0))::int AS maximumOrderQty,
+  CEIL(rli.calculatedorderquantity::numeric / NULLIF(o.netcontent, 0))::int AS calculatedOrderQty,
+  CEIL(rli.requestedquantity::numeric / NULLIF(o.netcontent, 0))::int AS requestedQty,
+  CEIL(rli.approvedquantity::numeric / NULLIF(o.netcontent, 0))::int AS actualQtyOrdered
+FROM requisition.requisition_line_items rli
+JOIN requisition.requisitions r ON r.id = rli.requisitionid
+JOIN referencedata.processing_periods pp ON pp.id = r.processingperiodid
+JOIN referencedata.facilities f ON f.id = r.facilityid
+JOIN referencedata.geographic_zones gz ON gz.id = f.geographiczoneid
+JOIN referencedata.orderables o
+  ON o.id = rli.orderableid AND o.versionnumber = rli.orderableversionnumber
+JOIN referencedata.programs prog ON prog.id = r.programid
+LEFT JOIN referencedata.program_orderables po
+  ON po.orderableid = rli.orderableid
+ AND po.orderableversionnumber = rli.orderableversionnumber
+ AND po.programid = r.programid
+LEFT JOIN referencedata.orderable_display_categories odc ON odc.id = po.orderabledisplaycategoryid
+WHERE ($P{program} IS NULL OR prog.id::varchar = $P{program} OR prog.name = $P{program})
+  AND r.status IN ('APPROVED', 'RELEASED', 'RELEASED_WITHOUT_ORDER')
+  AND r.emergency = false
+  AND COALESCE(rli.skipped, false) = false
+  AND EXISTS (
+        SELECT 1 FROM referencedata.program_orderables pof
+        WHERE pof.orderableid = rli.orderableid
+          AND pof.programid = r.programid
+          AND pof.fullsupply = true
+      )
+  AND ($P{product} IS NULL OR o.id::varchar = $P{product})
+  AND (
+        ($P{facility} IS NOT NULL
+         AND (f.code = $P{facility} OR f.id::varchar = $P{facility}))
+     OR ($P{facility} IS NULL AND f.geographiczoneid IN (SELECT id FROM zone_tree))
+      )
+  AND ($P{period} IS NULL OR pp.id::varchar = $P{period} OR pp.name = $P{period})
+ORDER BY pp.startdate, prog.code, o.code, f.code, gz.name]]>
+	</queryString>
+	<field name="facilityId" class="java.lang.String"/>
+	<field name="region" class="java.lang.String"/>
+	<field name="monthId" class="java.lang.Integer"/>
+	<field name="year" class="java.lang.Integer"/>
+	<field name="program" class="java.lang.String"/>
+	<field name="itemNo" class="java.lang.String"/>
+	<field name="productName" class="java.lang.String"/>
+	<field name="itemGroupId" class="java.lang.String"/>
+	<field name="openingStock" class="java.lang.Integer"/>
+	<field name="receiveQty" class="java.lang.Integer"/>
+	<field name="dispensedQty" class="java.lang.Integer"/>
+	<field name="adjustedQty" class="java.lang.Integer"/>
+	<field name="reasonForAdjustId" class="java.lang.String"/>
+	<field name="stockoutDays" class="java.lang.Integer"/>
+	<field name="closingStock" class="java.lang.Integer"/>
+	<field name="mos" class="java.math.BigDecimal"/>
+	<field name="amc" class="java.lang.Integer"/>
+	<field name="maximumOrderQty" class="java.lang.Integer"/>
+	<field name="calculatedOrderQty" class="java.lang.Integer"/>
+	<field name="requestedQty" class="java.lang.Integer"/>
+	<field name="actualQtyOrdered" class="java.lang.Integer"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<pageHeader>
+		<band height="26" splitType="Stretch">
+			<printWhenExpression><![CDATA[new Boolean($V{PAGE_NUMBER}.intValue() == 1)]]></printWhenExpression>
+			<textField>
+				<reportElement x="0" y="0" width="1570" height="24" uuid="edf0ece8-0000-0000-0000-000000000012"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"><font size="16" isBold="true"/></textElement>
+				<textFieldExpression><![CDATA[$R{report.title.ctsRequisitionReportExtended}]]></textFieldExpression>
+			</textField>
+		</band>
+	</pageHeader>
+	<columnHeader>
+		<band height="60" splitType="Stretch">
+			<rectangle><reportElement x="0" y="0" width="1570" height="60" backcolor="#C0C0C0" uuid="edf0ece8-0001-0000-0000-000000000020"/><graphicElement><pen lineWidth="0.0"/></graphicElement></rectangle>
+			<textField><reportElement x="0" y="0" width="60" height="60" uuid="edf0ece8-0001-0000-0000-000000000001"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.facilityId}]]></textFieldExpression></textField>
+			<textField><reportElement x="60" y="0" width="95" height="60" uuid="edf0ece8-0001-0000-0000-000000000002"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.region}]]></textFieldExpression></textField>
+			<textField><reportElement x="155" y="0" width="45" height="60" uuid="edf0ece8-0001-0000-0000-000000000003"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.monthId}]]></textFieldExpression></textField>
+			<textField><reportElement x="200" y="0" width="45" height="60" uuid="edf0ece8-0001-0000-0000-000000000004"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.year}]]></textFieldExpression></textField>
+			<textField><reportElement x="245" y="0" width="105" height="60" uuid="edf0ece8-0001-0000-0000-000000000005"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.program}]]></textFieldExpression></textField>
+			<textField><reportElement x="350" y="0" width="90" height="60" uuid="edf0ece8-0001-0000-0000-000000000006"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.itemNo}]]></textFieldExpression></textField>
+			<textField><reportElement x="440" y="0" width="200" height="60" uuid="edf0ece8-0001-0000-0000-000000000007"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.productName}]]></textFieldExpression></textField>
+			<textField><reportElement x="640" y="0" width="75" height="60" uuid="edf0ece8-0001-0000-0000-000000000008"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.itemGroupId}]]></textFieldExpression></textField>
+			<textField><reportElement x="715" y="0" width="60" height="60" uuid="edf0ece8-0001-0000-0000-000000000009"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.openingStock}]]></textFieldExpression></textField>
+			<textField><reportElement x="775" y="0" width="60" height="60" uuid="edf0ece8-0001-0000-0000-00000000000a"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.receiveQty}]]></textFieldExpression></textField>
+			<textField><reportElement x="835" y="0" width="60" height="60" uuid="edf0ece8-0001-0000-0000-00000000000b"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.dispensedQty}]]></textFieldExpression></textField>
+			<textField><reportElement x="895" y="0" width="60" height="60" uuid="edf0ece8-0001-0000-0000-00000000000c"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.adjustedQty}]]></textFieldExpression></textField>
+			<textField><reportElement x="955" y="0" width="140" height="60" uuid="edf0ece8-0001-0000-0000-00000000000d"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.reasonForAdjustId}]]></textFieldExpression></textField>
+			<textField><reportElement x="1095" y="0" width="55" height="60" uuid="edf0ece8-0001-0000-0000-00000000000e"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.stockoutDays}]]></textFieldExpression></textField>
+			<textField><reportElement x="1150" y="0" width="60" height="60" uuid="edf0ece8-0001-0000-0000-00000000000f"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.closingStock}]]></textFieldExpression></textField>
+			<textField><reportElement x="1210" y="0" width="50" height="60" uuid="edf0ece8-0001-0000-0000-000000000010"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.mos}]]></textFieldExpression></textField>
+			<textField><reportElement x="1260" y="0" width="55" height="60" uuid="edf0ece8-0001-0000-0000-000000000011"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.amc}]]></textFieldExpression></textField>
+			<textField><reportElement x="1315" y="0" width="65" height="60" uuid="edf0ece8-0001-0000-0000-000000000013"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.maximumOrderQty}]]></textFieldExpression></textField>
+			<textField><reportElement x="1380" y="0" width="65" height="60" uuid="edf0ece8-0001-0000-0000-000000000014"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.calculatedOrderQty}]]></textFieldExpression></textField>
+			<textField><reportElement x="1445" y="0" width="60" height="60" uuid="edf0ece8-0001-0000-0000-000000000015"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.requestedQty}]]></textFieldExpression></textField>
+			<textField><reportElement x="1505" y="0" width="65" height="60" uuid="edf0ece8-0001-0000-0000-000000000016"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.actualQtyOrdered}]]></textFieldExpression></textField>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="20" splitType="Prevent">
+			<textField isBlankWhenNull="true"><reportElement x="0" y="0" width="60" height="20" uuid="edf0ece8-0002-0000-0000-000000000001"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Left" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{facilityId}]]></textFieldExpression></textField>
+			<textField isBlankWhenNull="true"><reportElement x="60" y="0" width="95" height="20" uuid="edf0ece8-0002-0000-0000-000000000002"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Left" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{region}]]></textFieldExpression></textField>
+			<textField isBlankWhenNull="true"><reportElement x="155" y="0" width="45" height="20" uuid="edf0ece8-0002-0000-0000-000000000003"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Center" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{monthId}]]></textFieldExpression></textField>
+			<textField isBlankWhenNull="true"><reportElement x="200" y="0" width="45" height="20" uuid="edf0ece8-0002-0000-0000-000000000004"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Center" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{year}]]></textFieldExpression></textField>
+			<textField isBlankWhenNull="true"><reportElement x="245" y="0" width="105" height="20" uuid="edf0ece8-0002-0000-0000-000000000005"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Left" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{program}]]></textFieldExpression></textField>
+			<textField isBlankWhenNull="true"><reportElement x="350" y="0" width="90" height="20" uuid="edf0ece8-0002-0000-0000-000000000006"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Left" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{itemNo}]]></textFieldExpression></textField>
+			<textField isBlankWhenNull="true"><reportElement x="440" y="0" width="200" height="20" uuid="edf0ece8-0002-0000-0000-000000000007"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Left" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{productName}]]></textFieldExpression></textField>
+			<textField isBlankWhenNull="true"><reportElement x="640" y="0" width="75" height="20" uuid="edf0ece8-0002-0000-0000-000000000008"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Left" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{itemGroupId}]]></textFieldExpression></textField>
+			<textField isBlankWhenNull="true"><reportElement x="715" y="0" width="60" height="20" uuid="edf0ece8-0002-0000-0000-000000000009"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Center" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{openingStock}]]></textFieldExpression></textField>
+			<textField isBlankWhenNull="true"><reportElement x="775" y="0" width="60" height="20" uuid="edf0ece8-0002-0000-0000-00000000000a"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Center" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{receiveQty}]]></textFieldExpression></textField>
+			<textField isBlankWhenNull="true"><reportElement x="835" y="0" width="60" height="20" uuid="edf0ece8-0002-0000-0000-00000000000b"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Center" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{dispensedQty}]]></textFieldExpression></textField>
+			<textField isBlankWhenNull="true"><reportElement x="895" y="0" width="60" height="20" uuid="edf0ece8-0002-0000-0000-00000000000c"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Center" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{adjustedQty}]]></textFieldExpression></textField>
+			<textField isBlankWhenNull="true"><reportElement x="955" y="0" width="140" height="20" uuid="edf0ece8-0002-0000-0000-00000000000d"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Left" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{reasonForAdjustId}]]></textFieldExpression></textField>
+			<textField isBlankWhenNull="true"><reportElement x="1095" y="0" width="55" height="20" uuid="edf0ece8-0002-0000-0000-00000000000e"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Center" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{stockoutDays}]]></textFieldExpression></textField>
+			<textField isBlankWhenNull="true"><reportElement x="1150" y="0" width="60" height="20" uuid="edf0ece8-0002-0000-0000-00000000000f"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Center" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{closingStock}]]></textFieldExpression></textField>
+			<textField isBlankWhenNull="true" pattern="#,##0.0"><reportElement x="1210" y="0" width="50" height="20" uuid="edf0ece8-0002-0000-0000-000000000010"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Center" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{mos}]]></textFieldExpression></textField>
+			<textField isBlankWhenNull="true"><reportElement x="1260" y="0" width="55" height="20" uuid="edf0ece8-0002-0000-0000-000000000011"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Center" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{amc}]]></textFieldExpression></textField>
+			<textField isBlankWhenNull="true"><reportElement x="1315" y="0" width="65" height="20" uuid="edf0ece8-0002-0000-0000-000000000013"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Center" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{maximumOrderQty}]]></textFieldExpression></textField>
+			<textField isBlankWhenNull="true"><reportElement x="1380" y="0" width="65" height="20" uuid="edf0ece8-0002-0000-0000-000000000014"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Center" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{calculatedOrderQty}]]></textFieldExpression></textField>
+			<textField isBlankWhenNull="true"><reportElement x="1445" y="0" width="60" height="20" uuid="edf0ece8-0002-0000-0000-000000000015"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Center" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{requestedQty}]]></textFieldExpression></textField>
+			<textField isBlankWhenNull="true"><reportElement x="1505" y="0" width="65" height="20" uuid="edf0ece8-0002-0000-0000-000000000016"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Center" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{actualQtyOrdered}]]></textFieldExpression></textField>
+		</band>
+	</detail>
+	<pageFooter>
+		<band height="30">
+			<textField evaluationTime="Master">
+				<reportElement x="1370" y="5" width="200" height="20" uuid="edf0ece8-0000-0000-0000-000000000040"/>
+				<textElement textAlignment="Right" verticalAlignment="Top"/>
+				<textFieldExpression><![CDATA[$R{report.controls.page} + $V{MASTER_CURRENT_PAGE} + " " + $R{report.controls.pageOf} + $V{MASTER_TOTAL_PAGES}]]></textFieldExpression>
+			</textField>
+		</band>
+	</pageFooter>
+	<summary>
+		<band height="40">
+			<textField>
+				<reportElement positionType="FixRelativeToBottom" x="0" y="0" width="1570" height="30" uuid="edf0ece8-0000-0000-0000-000000000050">
+					<printWhenExpression><![CDATA[new Boolean($V{REPORT_COUNT}.intValue() == 0)]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Center" verticalAlignment="Middle"><font size="12" isBold="true"/></textElement>
+				<textFieldExpression><![CDATA[$R{report.footer.noDataForParameters}]]></textFieldExpression>
+			</textField>
+		</band>
+	</summary>
+</jasperReport>
