@@ -75,7 +75,7 @@ SELECT
   CEIL(rli.stockonhand::numeric / NULLIF(o.netcontent, 0))::int AS closingStock,
   round(rli.stockonhand::numeric / NULLIF(rli.averageconsumption, 0), 1) AS mos,
   CEIL(rli.averageconsumption::numeric / NULLIF(o.netcontent, 0))::int AS amc,
-  CEIL(rli.maximumstockquantity::numeric / NULLIF(o.netcontent, 0))::int AS maximumOrderQty,
+  CEIL(rli.calculatedorderquantity::numeric / NULLIF(o.netcontent, 0))::int AS maximumOrderQty,
   CEIL(rli.approvedquantity::numeric / NULLIF(o.netcontent, 0))::int AS actualQtyOrdered
 FROM requisition.requisition_line_items rli
 JOIN requisition.requisitions r ON r.id = rli.requisitionid
