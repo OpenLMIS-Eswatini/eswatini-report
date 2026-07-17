@@ -94,6 +94,7 @@ WHERE ($P{program} IS NULL OR prog.id::varchar = $P{program} OR prog.name = $P{p
   AND r.status IN ('APPROVED', 'RELEASED', 'RELEASED_WITHOUT_ORDER')
   AND r.emergency = false
   AND COALESCE(rli.skipped, false) = false
+  AND POSITION('_' IN f.code) = 0
   AND EXISTS (
         SELECT 1 FROM referencedata.program_orderables pof
         WHERE pof.orderableid = rli.orderableid
