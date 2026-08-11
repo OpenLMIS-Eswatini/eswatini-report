@@ -61,7 +61,12 @@ SELECT
   EXTRACT(MONTH FROM pp.startdate)::int AS monthId,
   EXTRACT(YEAR FROM pp.startdate)::int AS year,
   o.code AS itemNo,
-  odc.code AS itemGroupId,
+  CASE prog.code
+    WHEN 'em' THEN 'EMP'
+    WHEN 'ms' THEN 'MED'
+    WHEN 'malaria' THEN 'MAL'
+    ELSE UPPER(prog.code)
+  END AS itemGroupId,
   CEIL(rli.beginningbalance::numeric / NULLIF(o.netcontent, 0))::int AS openingStock,
   CEIL(rli.totalreceivedquantity::numeric / NULLIF(o.netcontent, 0))::int AS receiveQty,
   CEIL(rli.totalconsumedquantity::numeric / NULLIF(o.netcontent, 0))::int AS dispensedQty,
@@ -73,9 +78,9 @@ SELECT
   END AS reasonForAdjustId,
   rli.totalstockoutdays AS stockoutDays,
   CEIL(rli.stockonhand::numeric / NULLIF(o.netcontent, 0))::int AS closingStock,
-  round(rli.stockonhand::numeric / NULLIF(rli.averageconsumption, 0), 1) AS mos,
+  round(CEIL(rli.stockonhand::numeric / NULLIF(o.netcontent, 0))::numeric / NULLIF(CEIL(rli.averageconsumption::numeric / NULLIF(o.netcontent, 0)), 0), 1) AS mos,
   CEIL(rli.averageconsumption::numeric / NULLIF(o.netcontent, 0))::int AS amc,
-  CEIL(rli.calculatedorderquantity::numeric / NULLIF(o.netcontent, 0))::int AS maximumOrderQty,
+  (CEIL(rli.averageconsumption::numeric / NULLIF(o.netcontent, 0)) * 3)::int AS maximumOrderQty,
   CEIL(rli.approvedquantity::numeric / NULLIF(o.netcontent, 0))::int AS actualQtyOrdered
 FROM requisition.requisition_line_items rli
 JOIN requisition.requisitions r ON r.id = rli.requisitionid
@@ -85,11 +90,6 @@ JOIN referencedata.geographic_zones gz ON gz.id = f.geographiczoneid
 JOIN referencedata.orderables o
   ON o.id = rli.orderableid AND o.versionnumber = rli.orderableversionnumber
 JOIN referencedata.programs prog ON prog.id = r.programid
-LEFT JOIN referencedata.program_orderables po
-  ON po.orderableid = rli.orderableid
- AND po.orderableversionnumber = rli.orderableversionnumber
- AND po.programid = r.programid
-LEFT JOIN referencedata.orderable_display_categories odc ON odc.id = po.orderabledisplaycategoryid
 WHERE ($P{program} IS NULL OR prog.id::varchar = $P{program} OR prog.name = $P{program})
   AND r.status IN ('APPROVED', 'RELEASED', 'RELEASED_WITHOUT_ORDER')
   AND r.emergency = false
