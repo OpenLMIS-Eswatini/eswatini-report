@@ -22,7 +22,7 @@
 	<parameter name="geographicZone" class="java.lang.String">
 		<property name="displayName" value="Geographic Zone"/>
 		<property name="required" value="false"/>
-		<property name="selectExpression" value="/api/geographicZones/search"/>
+		<property name="selectExpression" value="/api/geographicZones?levelNumber=2"/>
 		<property name="selectProperty" value="id"/>
 		<property name="displayProperty" value="name"/>
 	</parameter>
