@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Created with Jaspersoft Studio version 6.20.5.20250704-1505 using JasperReports Library version 6.20.5-3efcf2e67f959db3888d79f73dde2dbd7acb4f8e  -->
-<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="CtsRequisitionReport" pageWidth="1108" pageHeight="595" orientation="Landscape" whenNoDataType="AllSectionsNoDetail" columnWidth="1068" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" isFloatColumnFooter="true" resourceBundle="reports/resourceBundles/report_translations" whenResourceMissingType="Key" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c10">
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="CtsRequisitionReport" pageWidth="1178" pageHeight="595" orientation="Landscape" whenNoDataType="AllSectionsNoDetail" columnWidth="1138" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" isFloatColumnFooter="true" resourceBundle="reports/resourceBundles/report_translations" whenResourceMissingType="Key" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c10">
 	<property name="net.sf.jasperreports.export.xlsx.exclude.origin.band.1" value="pageHeader"/>
 	<property name="net.sf.jasperreports.export.xlsx.exclude.origin.band.2" value="pageFooter"/>
 	<property name="net.sf.jasperreports.export.xlsx.exclude.origin.keep.first.band.1" value="columnHeader"/>
@@ -81,6 +81,7 @@ SELECT
   round(CEIL(rli.stockonhand::numeric / NULLIF(o.netcontent, 0))::numeric / NULLIF(CEIL(rli.averageconsumption::numeric / NULLIF(o.netcontent, 0)), 0), 1) AS mos,
   CEIL(rli.averageconsumption::numeric / NULLIF(o.netcontent, 0))::int AS amc,
   (CEIL(rli.averageconsumption::numeric / NULLIF(o.netcontent, 0)) * 3)::int AS maximumOrderQty,
+  CEIL(COALESCE(rli.requestedquantity, rli.calculatedorderquantity)::numeric / NULLIF(o.netcontent, 0))::int AS orderQty,
   CEIL(rli.approvedquantity::numeric / NULLIF(o.netcontent, 0))::int AS actualQtyOrdered
 FROM requisition.requisition_line_items rli
 JOIN requisition.requisitions r ON r.id = rli.requisitionid
@@ -125,6 +126,7 @@ ORDER BY pp.startdate, prog.code, o.code, f.code, gz.name]]>
 	<field name="mos" class="java.math.BigDecimal"/>
 	<field name="amc" class="java.lang.Integer"/>
 	<field name="maximumOrderQty" class="java.lang.Integer"/>
+	<field name="orderQty" class="java.lang.Integer"/>
 	<field name="actualQtyOrdered" class="java.lang.Integer"/>
 	<background>
 		<band splitType="Stretch"/>
@@ -133,7 +135,7 @@ ORDER BY pp.startdate, prog.code, o.code, f.code, gz.name]]>
 		<band height="26" splitType="Stretch">
 			<printWhenExpression><![CDATA[new Boolean($V{PAGE_NUMBER}.intValue() == 1)]]></printWhenExpression>
 			<textField>
-				<reportElement x="0" y="0" width="1068" height="24" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c12"/>
+				<reportElement x="0" y="0" width="1138" height="24" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c12"/>
 				<textElement textAlignment="Center" verticalAlignment="Middle"><font size="16" isBold="true"/></textElement>
 				<textFieldExpression><![CDATA[$R{report.title.ctsRequisitionReport}]]></textFieldExpression>
 			</textField>
@@ -141,7 +143,7 @@ ORDER BY pp.startdate, prog.code, o.code, f.code, gz.name]]>
 	</pageHeader>
 	<columnHeader>
 		<band height="60" splitType="Stretch">
-			<rectangle><reportElement x="0" y="0" width="1068" height="60" backcolor="#C0C0C0" uuid="b2f5c0a4-0001-0000-0000-000000000020"/><graphicElement><pen lineWidth="0.0"/></graphicElement></rectangle>
+			<rectangle><reportElement x="0" y="0" width="1138" height="60" backcolor="#C0C0C0" uuid="b2f5c0a4-0001-0000-0000-000000000020"/><graphicElement><pen lineWidth="0.0"/></graphicElement></rectangle>
 			<textField><reportElement x="0" y="0" width="60" height="60" uuid="b2f5c0a4-0001-0000-0000-000000000001"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.facilityId}]]></textFieldExpression></textField>
 			<textField><reportElement x="60" y="0" width="45" height="60" uuid="b2f5c0a4-0001-0000-0000-000000000002"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.monthId}]]></textFieldExpression></textField>
 			<textField><reportElement x="105" y="0" width="45" height="60" uuid="b2f5c0a4-0001-0000-0000-000000000003"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.year}]]></textFieldExpression></textField>
@@ -157,7 +159,7 @@ ORDER BY pp.startdate, prog.code, o.code, f.code, gz.name]]>
 			<textField><reportElement x="823" y="0" width="50" height="60" uuid="b2f5c0a4-0001-0000-0000-00000000000d"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.mos}]]></textFieldExpression></textField>
 			<textField><reportElement x="873" y="0" width="55" height="60" uuid="b2f5c0a4-0001-0000-0000-00000000000e"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.amc}]]></textFieldExpression></textField>
 			<textField><reportElement x="928" y="0" width="70" height="60" uuid="b2f5c0a4-0001-0000-0000-00000000000f"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.maximumOrderQty}]]></textFieldExpression></textField>
-			<textField><reportElement x="998" y="0" width="70" height="60" uuid="b2f5c0a4-0001-0000-0000-000000000010"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.actualQtyOrdered}]]></textFieldExpression></textField>
+			<textField><reportElement x="998" y="0" width="70" height="60" uuid="b2f5c0a4-0001-0000-0000-0000000000f1"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.orderQty}]]></textFieldExpression></textField><textField><reportElement x="1068" y="0" width="70" height="60" uuid="b2f5c0a4-0001-0000-0000-000000000010"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.actualQtyOrdered}]]></textFieldExpression></textField>
 		</band>
 	</columnHeader>
 	<detail>
@@ -177,13 +179,13 @@ ORDER BY pp.startdate, prog.code, o.code, f.code, gz.name]]>
 			<textField isStretchWithOverflow="true" isBlankWhenNull="true" pattern="#,##0.0"><reportElement stretchType="RelativeToTallestObject" x="823" y="0" width="50" height="20" uuid="b2f5c0a4-0002-0000-0000-00000000000d"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Center" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{mos}]]></textFieldExpression></textField>
 			<textField isStretchWithOverflow="true" isBlankWhenNull="true"><reportElement stretchType="RelativeToTallestObject" x="873" y="0" width="55" height="20" uuid="b2f5c0a4-0002-0000-0000-00000000000e"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Center" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{amc}]]></textFieldExpression></textField>
 			<textField isStretchWithOverflow="true" isBlankWhenNull="true"><reportElement stretchType="RelativeToTallestObject" x="928" y="0" width="70" height="20" uuid="b2f5c0a4-0002-0000-0000-00000000000f"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Center" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{maximumOrderQty}]]></textFieldExpression></textField>
-			<textField isStretchWithOverflow="true" isBlankWhenNull="true"><reportElement stretchType="RelativeToTallestObject" x="998" y="0" width="70" height="20" uuid="b2f5c0a4-0002-0000-0000-000000000010"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Center" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{actualQtyOrdered}]]></textFieldExpression></textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true"><reportElement stretchType="RelativeToTallestObject" x="998" y="0" width="70" height="20" uuid="b2f5c0a4-0002-0000-0000-0000000000f1"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Center" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{orderQty}]]></textFieldExpression></textField><textField isStretchWithOverflow="true" isBlankWhenNull="true"><reportElement stretchType="RelativeToTallestObject" x="1068" y="0" width="70" height="20" uuid="b2f5c0a4-0002-0000-0000-000000000010"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Center" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{actualQtyOrdered}]]></textFieldExpression></textField>
 		</band>
 	</detail>
 	<pageFooter>
 		<band height="30">
 			<textField evaluationTime="Master">
-				<reportElement x="868" y="5" width="200" height="20" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c40"/>
+				<reportElement x="938" y="5" width="200" height="20" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c40"/>
 				<textElement textAlignment="Right" verticalAlignment="Top"/>
 				<textFieldExpression><![CDATA[$R{report.controls.page} + $V{MASTER_CURRENT_PAGE} + " " + $R{report.controls.pageOf} + $V{MASTER_TOTAL_PAGES}]]></textFieldExpression>
 			</textField>
@@ -192,7 +194,7 @@ ORDER BY pp.startdate, prog.code, o.code, f.code, gz.name]]>
 	<summary>
 		<band height="40">
 			<textField>
-				<reportElement positionType="FixRelativeToBottom" x="0" y="0" width="1068" height="30" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c50">
+				<reportElement positionType="FixRelativeToBottom" x="0" y="0" width="1138" height="30" uuid="b2f5c0a4-1e3d-4a7b-9c21-0f6a8e2d4c50">
 					<printWhenExpression><![CDATA[new Boolean($V{REPORT_COUNT}.intValue() == 0)]]></printWhenExpression>
 				</reportElement>
 				<textElement textAlignment="Center" verticalAlignment="Middle"><font size="12" isBold="true"/></textElement>
