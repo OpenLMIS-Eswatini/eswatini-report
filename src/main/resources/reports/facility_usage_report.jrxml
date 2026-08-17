@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Jaspersoft Studio version 6.20.5.20250704-1505 using JasperReports Library version 6.20.5-3efcf2e67f959db3888d79f73dde2dbd7acb4f8e  -->
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports http://jasperreports.sourceforge.net/xsd/jasperreport.xsd" name="FacilityUsageReport" pageWidth="640" pageHeight="595" orientation="Landscape" whenNoDataType="AllSectionsNoDetail" columnWidth="600" leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20" isFloatColumnFooter="true" resourceBundle="reports/resourceBundles/report_translations" whenResourceMissingType="Key" uuid="5ff6997e-4654-465f-a48c-c17d2371bd18">
+	<property name="net.sf.jasperreports.export.xlsx.exclude.origin.band.1" value="pageHeader"/>
+	<property name="net.sf.jasperreports.export.xlsx.exclude.origin.band.2" value="pageFooter"/>
+	<property name="net.sf.jasperreports.export.xlsx.exclude.origin.keep.first.band.1" value="columnHeader"/>
+	<property name="net.sf.jasperreports.export.xlsx.remove.empty.space.between.rows" value="true"/>
+	<property name="net.sf.jasperreports.export.xls.exclude.origin.band.1" value="pageHeader"/>
+	<property name="net.sf.jasperreports.export.xls.exclude.origin.band.2" value="pageFooter"/>
+	<property name="net.sf.jasperreports.export.xls.exclude.origin.keep.first.band.1" value="columnHeader"/>
+	<property name="net.sf.jasperreports.export.xls.remove.empty.space.between.rows" value="true"/>
+	<property name="net.sf.jasperreports.export.csv.exclude.origin.band.1" value="pageHeader"/>
+	<property name="net.sf.jasperreports.export.csv.exclude.origin.band.2" value="pageFooter"/>
+	<property name="net.sf.jasperreports.export.csv.exclude.origin.keep.first.band.1" value="columnHeader"/>
+	<parameter name="geographicZone" class="java.lang.String">
+		<property name="displayName" value="Geographic Zone"/>
+		<property name="required" value="false"/>
+		<property name="selectExpression" value="/api/geographicZones?levelNumber=2"/>
+		<property name="selectProperty" value="id"/>
+		<property name="displayProperty" value="name"/>
+	</parameter>
+	<parameter name="facility" class="java.lang.String">
+		<property name="displayName" value="Facility"/>
+		<property name="required" value="false"/>
+		<property name="selectExpression" value="/api/facilities"/>
+		<property name="selectProperty" value="code"/>
+		<property name="displayProperty" value="name"/>
+	</parameter>
+	<parameter name="headerTemplate" class="net.sf.jasperreports.engine.JasperReport" isForPrompting="false"/>
+	<queryString>
+		<![CDATA[WITH RECURSIVE zone_tree AS (
+  SELECT id FROM referencedata.geographic_zones
+   WHERE $P{geographicZone} IS NULL OR id = $P{geographicZone}::uuid
+  UNION ALL
+  SELECT gz.id FROM referencedata.geographic_zones gz
+  JOIN zone_tree zt ON zt.id = gz.parentid
+)
+SELECT
+  f.code AS facilityCode,
+  f.name AS facilityName,
+  pgz.name AS region,
+  to_char(lt.processeddate, 'YYYY-MM-DD') AS dateOfLastTransaction
+FROM referencedata.facilities f
+JOIN referencedata.geographic_zones gz ON gz.id = f.geographiczoneid
+LEFT JOIN referencedata.geographic_zones pgz ON pgz.id = gz.parentid
+LEFT JOIN LATERAL (
+  SELECT l.processeddate
+  FROM stockmanagement.stock_cards sc
+  JOIN stockmanagement.stock_card_line_items l ON l.stockcardid = sc.id
+  WHERE sc.facilityid = f.id
+  ORDER BY l.processeddate DESC NULLS LAST
+  LIMIT 1
+) lt ON true
+WHERE f.active = true
+  AND POSITION('_' IN f.code) = 0
+  AND (
+        ($P{facility} IS NOT NULL
+         AND (f.code = $P{facility} OR f.id::varchar = $P{facility}))
+     OR ($P{facility} IS NULL AND f.geographiczoneid IN (SELECT id FROM zone_tree))
+      )
+ORDER BY lt.processeddate ASC NULLS FIRST, pgz.name, f.code]]>
+	</queryString>
+	<field name="facilityCode" class="java.lang.String"/>
+	<field name="facilityName" class="java.lang.String"/>
+	<field name="region" class="java.lang.String"/>
+	<field name="dateOfLastTransaction" class="java.lang.String"/>
+	<background>
+		<band splitType="Stretch"/>
+	</background>
+	<pageHeader>
+		<band height="26" splitType="Stretch">
+			<printWhenExpression><![CDATA[new Boolean($V{PAGE_NUMBER}.intValue() == 1)]]></printWhenExpression>
+			<textField>
+				<reportElement x="0" y="0" width="600" height="24" uuid="5ff6997e-0000-0000-0000-000000000001"/>
+				<textElement textAlignment="Center" verticalAlignment="Middle"><font size="16" isBold="true"/></textElement>
+				<textFieldExpression><![CDATA[$R{report.title.facilityUsageReport}]]></textFieldExpression>
+			</textField>
+		</band>
+	</pageHeader>
+	<columnHeader>
+		<band height="40" splitType="Stretch">
+			<rectangle><reportElement x="0" y="0" width="600" height="40" backcolor="#C0C0C0" uuid="5ff6997e-0001-0000-0000-000000000099"/><graphicElement><pen lineWidth="0.0"/></graphicElement></rectangle>
+			<textField><reportElement x="0" y="0" width="100" height="40" uuid="5ff6997e-0001-0000-0000-000000000001"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.facilityCode}]]></textFieldExpression></textField>
+			<textField><reportElement x="100" y="0" width="240" height="40" uuid="5ff6997e-0001-0000-0000-000000000002"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.facilityName}]]></textFieldExpression></textField>
+			<textField><reportElement x="340" y="0" width="130" height="40" uuid="5ff6997e-0001-0000-0000-000000000003"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.region}]]></textFieldExpression></textField>
+			<textField><reportElement x="470" y="0" width="130" height="40" uuid="5ff6997e-0001-0000-0000-000000000004"/><box leftPadding="2"><pen lineWidth="0.5" lineColor="#80C7E8"/></box><textElement textAlignment="Center" verticalAlignment="Middle"><font size="9" isBold="true"/></textElement><textFieldExpression><![CDATA[$R{report.column.dateOfLastTransaction}]]></textFieldExpression></textField>
+		</band>
+	</columnHeader>
+	<detail>
+		<band height="20" splitType="Prevent">
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true"><reportElement stretchType="RelativeToTallestObject" x="0" y="0" width="100" height="20" uuid="5ff6997e-0002-0000-0000-000000000001"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Left" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{facilityCode}]]></textFieldExpression></textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true"><reportElement stretchType="RelativeToTallestObject" x="100" y="0" width="240" height="20" uuid="5ff6997e-0002-0000-0000-000000000002"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Left" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{facilityName}]]></textFieldExpression></textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true"><reportElement stretchType="RelativeToTallestObject" x="340" y="0" width="130" height="20" uuid="5ff6997e-0002-0000-0000-000000000003"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Left" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{region}]]></textFieldExpression></textField>
+			<textField isStretchWithOverflow="true" isBlankWhenNull="true"><reportElement stretchType="RelativeToTallestObject" x="470" y="0" width="130" height="20" uuid="5ff6997e-0002-0000-0000-000000000004"/><box leftPadding="3"><pen lineWidth="0.25" lineColor="#D2D2D2"/></box><textElement textAlignment="Center" verticalAlignment="Middle"/><textFieldExpression><![CDATA[$F{dateOfLastTransaction}]]></textFieldExpression></textField>
+		</band>
+	</detail>
+	<pageFooter>
+		<band height="30">
+			<textField evaluationTime="Master">
+				<reportElement x="400" y="5" width="200" height="20" uuid="5ff6997e-0000-0000-0000-000000000040"/>
+				<textElement textAlignment="Right" verticalAlignment="Top"/>
+				<textFieldExpression><![CDATA[$R{report.controls.page} + $V{MASTER_CURRENT_PAGE} + " " + $R{report.controls.pageOf} + $V{MASTER_TOTAL_PAGES}]]></textFieldExpression>
+			</textField>
+		</band>
+	</pageFooter>
+	<summary>
+		<band height="40">
+			<textField>
+				<reportElement positionType="FixRelativeToBottom" x="0" y="0" width="600" height="30" uuid="5ff6997e-0000-0000-0000-000000000050">
+					<printWhenExpression><![CDATA[new Boolean($V{REPORT_COUNT}.intValue() == 0)]]></printWhenExpression>
+				</reportElement>
+				<textElement textAlignment="Center" verticalAlignment="Middle"><font size="12" isBold="true"/></textElement>
+				<textFieldExpression><![CDATA[$R{report.footer.noDataForParameters}]]></textFieldExpression>
+			</textField>
+		</band>
+	</summary>
+</jasperReport>
