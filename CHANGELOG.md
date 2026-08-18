@@ -4,6 +4,9 @@
 New functionality:
 * Added CTS Requisition Report (`cts_requisition_report`): exports full-supply requisition
   line-item data (quantities in packs) for the CTS - Commodity Tracking System.
+* Added Facility Usage Report (`facility_usage_report`): lists facilities that have recorded
+  stock movements, showing facility code, name, region (parent zone) and the date of the last
+  stock movement; filters by region and facility, ordered by oldest last transaction first.
 
 1.0.0 / 2026-06-18
 ==================
