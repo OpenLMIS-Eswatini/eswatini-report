@@ -43,7 +43,7 @@ SELECT
 FROM referencedata.facilities f
 JOIN referencedata.geographic_zones gz ON gz.id = f.geographiczoneid
 LEFT JOIN referencedata.geographic_zones pgz ON pgz.id = gz.parentid
-LEFT JOIN LATERAL (
+JOIN LATERAL (
   SELECT l.processeddate
   FROM stockmanagement.stock_cards sc
   JOIN stockmanagement.stock_card_line_items l ON l.stockcardid = sc.id
@@ -58,7 +58,7 @@ WHERE f.active = true
          AND (f.code = $P{facility} OR f.id::varchar = $P{facility}))
      OR ($P{facility} IS NULL AND f.geographiczoneid IN (SELECT id FROM zone_tree))
       )
-ORDER BY lt.processeddate ASC NULLS FIRST, pgz.name, f.code]]>
+ORDER BY lt.processeddate ASC, pgz.name, f.code]]>
 	</queryString>
 	<field name="facilityCode" class="java.lang.String"/>
 	<field name="facilityName" class="java.lang.String"/>
